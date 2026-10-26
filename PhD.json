@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "app": "myJira",
+  "updatedAt": "2026-10-25T13:10:09.220Z",
+  "tasks": [
+    {
+      "id": "84c7a96f-1050-49b6-84d9-c88aab3f37e2",
+      "text": "HACE paper",
+      "zone": "q2",
+      "order": 0,
+      "done": false
+    },
+    {
+      "id": "4974760f-238a-44be-840e-f14b7263e697",
+      "text": "Shi-Tomasi Corner Detector paper, DOI: 10.1109/CVPR.1994.323794",
+      "zone": "q2",
+      "order": 1,
+      "done": false
+    },
+    {
+      "id": "64459050-9765-413a-a01c-9a72e422e2b4",
+      "text": "RACE paper",
+      "zone": "time-1300",
+      "order": 0,
+      "done": false,
+      "duration": 60
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>My Tasks and Eisenhower Matrix</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+<header><div><h1>My Tasks</h1><p>Sortable task list and Eisenhower Matrix</p></div><div id="saveStatus" class="save" aria-live="polite">Loading tasks...</div></header>
+<main class="layout">
+<section class="panel" aria-labelledby="inboxTitle">
+<div class="panel-title"><h2 id="inboxTitle">Task List</h2><span id="inboxCount" class="count">0</span></div>
+<form id="inboxForm" class="add"><input id="inboxInput" maxlength="180" placeholder="Enter a task..." aria-label="New task"><button class="primary" type="submit">Add</button></form>
+<div id="inbox" class="task-list dropzone" data-zone="inbox"></div><div class="empty">No tasks yet.</div>
+<p class="hint">Drag tasks, or use ↑ and ↓. To prioritize a task, move it to a quadrant.</p>
+</section>
+<section class="panel" aria-labelledby="matrixTitle">
+<div class="panel-title"><h2 id="matrixTitle">Eisenhower Matrix</h2><span id="matrixCount" class="count">0</span></div>
+<div class="matrix">
+<section class="quadrant q1 dropzone" data-zone="q1"><h3>1. Do now</h3><p>Urgent and important</p><div class="task-list" id="q1"></div><div class="empty">Drop tasks here.</div></section>
+<section class="quadrant q2 dropzone" data-zone="q2"><h3>2. Schedule</h3><p>Important, not urgent</p><div class="task-list" id="q2"></div><div class="empty">Drop tasks here.</div></section>
+<section class="quadrant q3 dropzone" data-zone="q3"><h3>3. Delegate</h3><p>Urgent, not important</p><div class="task-list" id="q3"></div><div class="empty">Drop tasks here.</div></section>
+<section class="quadrant q4 dropzone" data-zone="q4"><h3>4. Eliminate / postpone</h3><p>Neither urgent nor important</p><div class="task-list" id="q4"></div><div class="empty">Drop tasks here.</div></section>
+</div>
+<p class="hint">You can also add a task to the list first and classify it later.</p>
+</section>
+<section class="panel schedule-panel" aria-labelledby="scheduleTitle">
+<div class="panel-title"><div><h2 id="scheduleTitle">Today's Schedule</h2><p id="todayDate" class="today-date"></p></div><span id="scheduleCount" class="count">0</span></div>
+<div id="schedule" class="schedule" aria-label="Today schedule from 7 AM to 5 PM"></div>
+<p class="hint">Drag a task anywhere on the timeline to change its start time, including slots covered by the task itself. Drag its top or bottom edge to adjust start, end, and duration in 15-minute steps.</p>
+</section>
+</main>
+<div class="footer-actions"><button id="exportBtn" type="button">Export backup</button><button id="importBtn" type="button">Import backup</button><button id="clearBtn" class="danger" type="button">Clear all</button></div>
+</div>
+<div id="taskTooltip" class="task-tooltip" role="tooltip"></div>
+<div id="confirmModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"><div class="dialog"><h2 id="confirmTitle">Clear all tasks?</h2><p>This action cannot be undone unless you exported a backup first.</p><div class="dialog-actions"><button id="cancelClear" type="button">Cancel</button><button id="confirmClear" class="danger" type="button">Clear all</button></div></div></div>
+<div id="editModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle"><form id="editForm" class="dialog" novalidate><h2 id="editTitle">Edit task</h2><input id="editInput" maxlength="180" aria-label="Task text" aria-describedby="editError"><p id="editError" class="form-error" hidden></p><div class="dialog-actions"><button id="cancelEdit" type="button">Cancel</button><button class="primary" type="submit">Save</button></div></form></div>
+<div id="messageModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="messageTitle"><div class="dialog"><h2 id="messageTitle">Notice</h2><p id="messageText" class="message-text"></p><div class="dialog-actions"><button id="messageClose" class="primary" type="button">OK</button></div></div></div>
+<script src="app.js"></script>
+</body>
+</html>
