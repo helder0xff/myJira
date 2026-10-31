@@ -525,6 +525,18 @@ input:disabled {
   margin-top: 14px;
 }
 
+.data-file-path {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  user-select: text;
+}
+
 .modal {
   position: fixed;
   inset: 0;

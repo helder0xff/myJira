@@ -195,6 +195,7 @@ function registerIpcHandlers() {
         ok: true,
         tasks: saved.tasks,
         filePath: saved.filePath,
+        sourceFilePath: parsed.filePath,
         backupPath: saved.preImportPath,
         sourceSchemaVersion: parsed.sourceSchemaVersion,
         warnings

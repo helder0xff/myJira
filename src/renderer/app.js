@@ -500,6 +500,9 @@
       state = { tasks: result.tasks };
       saveSequence += 1;
       setLocked(false);
+      if (result.sourceFilePath) {
+        $('#dataFilePath').textContent = 'Source file: ' + result.sourceFilePath;
+      }
       setSaveStatus('Imported ' + result.tasks.length + ' task' + (result.tasks.length === 1 ? '' : 's'));
       render();
       if (result.warnings && result.warnings.length) {
@@ -515,6 +518,9 @@
     try {
       info = await api.getInfo();
       timeZones = Array.isArray(info.timeZones) ? info.timeZones : [];
+      if (info.filePath) {
+        $('#dataFilePath').textContent = 'Saved to: ' + info.filePath;
+      }
     } catch (error) {
       timeZones = [];
       showMessage('Could not start myJira', error && error.message ? error.message : String(error));
