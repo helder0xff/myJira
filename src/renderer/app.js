@@ -68,13 +68,6 @@
       const label = raw.slice(0, 2) + ':' + raw.slice(2);
       return `<div class="time-slot"><div class="time-label">${label}</div><div class="slot-drop dropzone" data-zone="${zone}"></div></div>`;
     }).join('') + '<div id="eventsLayer" class="events-layer"></div></div>';
-    const today = new Date();
-    $('#todayDate').textContent = new Intl.DateTimeFormat('en', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    }).format(today);
   }
 
   function zoneTasks(zone) {

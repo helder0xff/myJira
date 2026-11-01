@@ -33,8 +33,6 @@ test/
   unit/            Schema and storage tests
   e2e/             Electron end-to-end tests
 build/             Application icons
-v4_jira_readable_eisenhower.html
-                   Original HTML application, kept for reference
 ```
 
 ## Requirements
@@ -213,16 +211,9 @@ Use **Export backup** and **Import backup** in the application footer. Both use 
 - The maximum import size is 10 MB.
 - The same exported file can be imported on Windows and Linux without conversion.
 
-### Migrating from the original HTML application
+### Importing legacy backups
 
-The original HTML app stored tasks in browser `localStorage`, which the desktop app cannot read directly. To migrate:
-
-1. Open `v4_jira_readable_eisenhower.html` in the browser where the tasks were stored.
-2. Click **Export backup**.
-3. Open the desktop app and click **Import backup**.
-4. Select the exported file.
-
-Files from the old app have no `schemaVersion`. They are accepted as legacy input, normalized, and saved as schema version 1.
+Backup files from the original HTML application have no `schemaVersion`. They are accepted as legacy input, normalized, and saved as schema version 1 when imported with **Import backup**.
 
 ## Verification performed
 

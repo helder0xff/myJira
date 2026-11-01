@@ -490,12 +490,6 @@ input:disabled {
   padding: 4px 6px;
 }
 
-.today-date {
-  font-size: 12px;
-  color: var(--muted);
-  margin: 2px 0 0;
-}
-
 .task-tooltip {
   position: fixed;
   z-index: 30;
