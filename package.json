@@ -1,6 +1,6 @@
 {
   "name": "myjira",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Portable task list and Eisenhower matrix desktop application",
   "main": "src/main/main.js",
   "private": true,

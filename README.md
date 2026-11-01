@@ -110,8 +110,8 @@ No installation or uninstall step is required.
 ### Linux
 
 ```bash
-chmod +x myJira-1.0.0-linux-x86_64.AppImage
-./myJira-1.0.0-linux-x86_64.AppImage
+chmod +x myJira-1.0.2-linux-x86_64.AppImage
+./myJira-1.0.2-linux-x86_64.AppImage
 ```
 
 The AppImage can also be double-clicked after it is marked executable.
@@ -119,14 +119,14 @@ The AppImage can also be double-clicked after it is marked executable.
 If FUSE is unavailable:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./myJira-1.0.0-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./myJira-1.0.2-linux-x86_64.AppImage
 ```
 
 The portable AppImage disables Chromium's sandbox automatically. This is required for reliable startup on Ubuntu 24.04+, where unprivileged AppImages are restricted by AppArmor. The app is local and offline, but this reduces process isolation.
 
 ### Windows
 
-Run `myJira-1.0.0-win-x64-portable.exe` directly. It does not install anything; it extracts to a temporary directory and starts the app.
+Run `myJira-1.0.2-win-x64-portable.exe` directly. It does not install anything; it extracts to a temporary directory and starts the app.
 
 Task data remains in the per-user data directory, so replacing the portable executable with a newer version does not affect tasks.
 
@@ -146,14 +146,14 @@ The file is independent of the executable location and application version. Repl
 Set `MYJIRA_DATA_DIR` before launching to place `tasks.json` in a chosen directory:
 
 ```bash
-MYJIRA_DATA_DIR=/media/usb/myjira ./myJira-1.0.0-linux-x86_64.AppImage
+MYJIRA_DATA_DIR=/media/usb/myjira ./myJira-1.0.2-linux-x86_64.AppImage
 ```
 
 For Windows:
 
 ```bat
 set MYJIRA_DATA_DIR=E:\myjira-data
-myJira-1.0.0-win-x64-portable.exe
+myJira-1.0.2-win-x64-portable.exe
 ```
 
 In this mode Electron's internal cache is stored in a `.electron-user-data` subdirectory of the same location, while `tasks.json` remains directly in the selected directory.

@@ -59,6 +59,18 @@ header p {
   color: var(--red);
 }
 
+.header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.app-version {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .layout {
   display: grid;
   grid-template-columns: minmax(280px, .75fr) minmax(520px, 1.35fr) minmax(300px, .9fr);

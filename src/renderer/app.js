@@ -512,7 +512,11 @@
       info = await api.getInfo();
       timeZones = Array.isArray(info.timeZones) ? info.timeZones : [];
       if (info.filePath) {
+        $('#appTitle').textContent = info.filePath.split(/[\\/]/).pop();
         $('#dataFilePath').textContent = 'Saved to: ' + info.filePath;
+      }
+      if (info.version) {
+        $('#appVersion').textContent = 'myJira ' + info.version;
       }
     } catch (error) {
       timeZones = [];
