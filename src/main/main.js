@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const { TIME_ZONES } = require('../shared/taskSchema');
-const { createTaskStore } = require('./taskStore');
+const { LAST_FILE_SETTINGS_NAME, createTaskStore, readLastFile } = require('./taskStore');
 
 const APP_NAME = 'myJira';
 const RENDERER_HTML = path.join(__dirname, '..', 'renderer', 'index.html');
@@ -24,6 +24,8 @@ app.setPath('userData', userDataDir);
 const taskDataDir = process.env.MYJIRA_DATA_DIR
   ? path.resolve(process.env.MYJIRA_DATA_DIR)
   : path.join(userDataDir, 'data');
+
+const lastFileSettingsPath = path.join(taskDataDir, LAST_FILE_SETTINGS_NAME);
 
 let mainWindow = null;
 let taskStore = null;
@@ -156,11 +158,11 @@ function registerIpcHandlers() {
 
       if (count > 0 || locked) {
         const detail = locked
-          ? 'The current tasks file was created by a newer version of myJira and has not been loaded. Importing will replace it. A timestamped copy of the current file will be kept in the tasks data folder.'
+          ? 'The current tasks file was created by a newer version of myJira and has not been loaded. The imported file will become the file myJira works with from now on. A timestamped copy of the original imported file will be kept in the tasks data folder.'
           : 'This will replace all ' + count + ' task' + (count === 1 ? '' : 's') +
               ' currently in myJira with ' + parsed.tasks.length + ' imported task' +
               (parsed.tasks.length === 1 ? '' : 's') +
-              '. A timestamped copy of the current tasks file will be kept in the tasks data folder.';
+              '. The imported file will become the file myJira works with from now on. A timestamped copy of the original imported file will be kept in the tasks data folder.';
         const confirmation = mainWindow
           ? await dialog.showMessageBox(mainWindow, {
               type: 'warning',
@@ -185,7 +187,7 @@ function registerIpcHandlers() {
         }
       }
 
-      const saved = await taskStore.replaceWithImported(parsed.tasks);
+      const saved = await taskStore.adoptImportedFile(result.filePaths[0], parsed.tasks);
       const warnings = parsed.warnings.slice();
       if (parsed.legacy) {
         warnings.unshift('This legacy tasks file was upgraded to schema version 1.');
@@ -195,7 +197,6 @@ function registerIpcHandlers() {
         ok: true,
         tasks: saved.tasks,
         filePath: saved.filePath,
-        sourceFilePath: parsed.filePath,
         backupPath: saved.preImportPath,
         sourceSchemaVersion: parsed.sourceSchemaVersion,
         warnings
@@ -248,7 +249,23 @@ if (!hasSingleInstanceLock) {
   });
 
   app.whenReady().then(() => {
-    taskStore = createTaskStore({ dataDir: taskDataDir });
+    let currentFile = null;
+    const remembered = readLastFile(lastFileSettingsPath);
+    if (remembered) {
+      const resolved = path.resolve(remembered);
+      try {
+        if (fs.existsSync(resolved) && fs.statSync(resolved).isFile()) {
+          currentFile = resolved;
+        }
+      } catch (statError) {
+        currentFile = null;
+      }
+    }
+    taskStore = createTaskStore({
+      dataDir: taskDataDir,
+      currentFile,
+      settingsFile: lastFileSettingsPath
+    });
     registerIpcHandlers();
     createWindow();
   }).catch((error) => {

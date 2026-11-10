@@ -1,5 +1,6 @@
 'use strict';
 
+const fsSync = require('node:fs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {
@@ -10,6 +11,7 @@ const {
 } = require('../shared/taskSchema');
 
 const TASKS_FILE_NAME = 'tasks.json';
+const LAST_FILE_SETTINGS_NAME = 'last-file.json';
 const MAX_IMPORT_BYTES = 10 * 1024 * 1024;
 
 class TaskStoreError extends Error {
@@ -23,6 +25,24 @@ class TaskStoreError extends Error {
 
 function timestampForFileName(date) {
   return date.toISOString().replace(/[:.]/g, '-');
+}
+
+function readLastFile(settingsPath) {
+  let contents;
+  try {
+    contents = fsSync.readFileSync(settingsPath, 'utf8');
+  } catch (error) {
+    return null;
+  }
+  try {
+    const settings = JSON.parse(contents);
+    if (settings && typeof settings.file === 'string' && settings.file.trim()) {
+      return settings.file.trim();
+    }
+  } catch (error) {
+    return null;
+  }
+  return null;
 }
 
 async function replaceFile(source, destination) {
@@ -67,11 +87,36 @@ function createTaskStore(options = {}) {
   const now = options.now || (() => new Date());
   const idFactory = options.idFactory;
   const maxImportBytes = options.maxImportBytes || MAX_IMPORT_BYTES;
+  const settingsFile = options.settingsFile
+    ? path.resolve(options.settingsFile)
+    : path.join(dataDir, LAST_FILE_SETTINGS_NAME);
   const dataFile = path.join(dataDir, TASKS_FILE_NAME);
-  const backupFile = path.join(dataDir, TASKS_FILE_NAME + '.bak');
+  let currentFile = options.currentFile ? path.resolve(options.currentFile) : dataFile;
 
   let writeQueue = Promise.resolve();
   let lockedReason = null;
+
+  function currentBaseName() {
+    return path.basename(currentFile);
+  }
+
+  function currentStemName() {
+    const base = path.basename(currentFile);
+    const extension = path.extname(base);
+    return extension ? base.slice(0, -extension.length) : base;
+  }
+
+  function backupFilePath() {
+    return path.join(dataDir, currentBaseName() + '.bak');
+  }
+
+  async function persistLastFile(filePath) {
+    try {
+      await writeAtomic(settingsFile, JSON.stringify({ file: filePath }, null, 2) + '\n');
+    } catch (error) {
+      // Remembering the last working file is best-effort; never fail the operation.
+    }
+  }
 
   function enqueue(operation) {
     const result = writeQueue.catch(() => {}).then(operation);
@@ -82,7 +127,7 @@ function createTaskStore(options = {}) {
   async function copyCurrentFile(destinationName) {
     const destination = path.join(dataDir, destinationName);
     try {
-      await fs.copyFile(dataFile, destination);
+      await fs.copyFile(currentFile, destination);
       return destination;
     } catch (error) {
       if (error.code === 'ENOENT') {
@@ -93,12 +138,12 @@ function createTaskStore(options = {}) {
   }
 
   async function backupExistingData() {
-    return copyCurrentFile(path.basename(backupFile));
+    return copyCurrentFile(currentBaseName() + '.bak');
   }
 
   async function preserveCorruptFile() {
     const stamp = timestampForFileName(now());
-    return copyCurrentFile('tasks.corrupt-' + stamp + '.json');
+    return copyCurrentFile(currentStemName() + '.corrupt-' + stamp + '.json');
   }
 
   async function writeTasksFile(tasks) {
@@ -106,12 +151,12 @@ function createTaskStore(options = {}) {
     await backupExistingData();
     const currentTime = now();
     const contents = serializeTaskFile(tasks, { now: () => currentTime });
-    await writeAtomic(dataFile, contents);
+    await writeAtomic(currentFile, contents);
     return {
       ok: true,
       tasks,
       updatedAt: currentTime.toISOString(),
-      filePath: dataFile
+      filePath: currentFile
     };
   }
 
@@ -119,28 +164,61 @@ function createTaskStore(options = {}) {
     await fs.mkdir(dataDir, { recursive: true });
 
     let contents;
+    let fallbackWarning = null;
     try {
-      contents = await fs.readFile(dataFile, 'utf8');
+      contents = await fs.readFile(currentFile, 'utf8');
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error.code === 'ENOENT' && currentFile !== dataFile) {
+        // The file used in the last session is gone (moved or deleted); fall back
+        // to the default tasks file without forgetting the remembered path.
+        const missingPath = currentFile;
+        currentFile = dataFile;
+        fallbackWarning = 'The tasks file used in the last session could not be found (' +
+          missingPath + '). myJira opened the default tasks file instead.';
+        try {
+          contents = await fs.readFile(currentFile, 'utf8');
+        } catch (defaultError) {
+          if (defaultError.code === 'ENOENT') {
+            return {
+              ok: true,
+              tasks: [],
+              filePath: currentFile,
+              warning: fallbackWarning,
+              firstRun: true
+            };
+          }
+          lockedReason = {
+            code: 'read-failed',
+            message: 'The tasks file could not be read: ' + defaultError.message
+          };
+          return {
+            ok: false,
+            locked: true,
+            error: lockedReason,
+            filePath: currentFile,
+            warning: fallbackWarning
+          };
+        }
+      } else if (error.code === 'ENOENT') {
         return {
           ok: true,
           tasks: [],
-          filePath: dataFile,
+          filePath: currentFile,
           warning: null,
           firstRun: true
         };
+      } else {
+        lockedReason = {
+          code: 'read-failed',
+          message: 'The tasks file could not be read: ' + error.message
+        };
+        return {
+          ok: false,
+          locked: true,
+          error: lockedReason,
+          filePath: currentFile
+        };
       }
-      lockedReason = {
-        code: 'read-failed',
-        message: 'The tasks file could not be read: ' + error.message
-      };
-      return {
-        ok: false,
-        locked: true,
-        error: lockedReason,
-        filePath: dataFile
-      };
     }
 
     try {
@@ -148,8 +226,8 @@ function createTaskStore(options = {}) {
       return {
         ok: true,
         tasks: parsed.tasks,
-        filePath: dataFile,
-        warning: null,
+        filePath: currentFile,
+        warning: fallbackWarning,
         warnings: parsed.warnings,
         legacy: parsed.legacy,
         sourceSchemaVersion: parsed.sourceSchemaVersion
@@ -165,7 +243,7 @@ function createTaskStore(options = {}) {
           ok: false,
           locked: true,
           error: lockedReason,
-          filePath: dataFile
+          filePath: currentFile
         };
       }
 
@@ -178,7 +256,7 @@ function createTaskStore(options = {}) {
 
       let backupContents = null;
       try {
-        backupContents = await fs.readFile(backupFile, 'utf8');
+        backupContents = await fs.readFile(backupFilePath(), 'utf8');
       } catch (backupError) {
         backupContents = null;
       }
@@ -186,11 +264,11 @@ function createTaskStore(options = {}) {
       if (backupContents) {
         try {
           const recovered = parseTaskFile(backupContents, { idFactory });
-          await writeAtomic(dataFile, serializeTaskFile(recovered.tasks, { now }));
+          await writeAtomic(currentFile, serializeTaskFile(recovered.tasks, { now }));
           return {
             ok: true,
             tasks: recovered.tasks,
-            filePath: dataFile,
+            filePath: currentFile,
             warning: 'The tasks file was damaged and has been restored from its backup.' +
               (corruptPath ? '\n\nA copy of the damaged file was kept at:\n' + corruptPath : ''),
             recoveredFromBackup: true,
@@ -204,7 +282,7 @@ function createTaskStore(options = {}) {
       return {
         ok: true,
         tasks: [],
-        filePath: dataFile,
+        filePath: currentFile,
         warning: 'The tasks file could not be read, so myJira started with an empty list.' +
           (corruptPath ? '\n\nThe damaged file was kept at:\n' + corruptPath : '') +
           '\n\nYou can import a backup to restore your tasks.',
@@ -225,10 +303,14 @@ function createTaskStore(options = {}) {
   async function exportToFile(filePath, tasks) {
     const normalized = normalizeTasks(tasks, { idFactory });
     const contents = serializeTaskFile(normalized, { now });
-    await writeAtomic(path.resolve(filePath), contents);
+    const resolvedFile = path.resolve(filePath);
+    await writeAtomic(resolvedFile, contents);
+    currentFile = resolvedFile;
+    lockedReason = null;
+    await persistLastFile(currentFile);
     return {
       ok: true,
-      filePath: path.resolve(filePath),
+      filePath: currentFile,
       count: normalized.length
     };
   }
@@ -249,15 +331,17 @@ function createTaskStore(options = {}) {
     };
   }
 
-  async function replaceWithImported(tasks) {
+  async function adoptImportedFile(filePath, tasks) {
     const normalized = normalizeTasks(tasks, { idFactory });
 
     return enqueue(async () => {
       await fs.mkdir(dataDir, { recursive: true });
       const stamp = timestampForFileName(now());
-      const preImportPath = await copyCurrentFile('tasks.pre-import-' + stamp + '.json');
+      currentFile = path.resolve(filePath);
+      const preImportPath = await copyCurrentFile(currentStemName() + '.pre-import-' + stamp + '.json');
       const result = await writeTasksFile(normalized);
       lockedReason = null;
+      await persistLastFile(currentFile);
       return {
         ...result,
         preImportPath
@@ -274,25 +358,31 @@ function createTaskStore(options = {}) {
   }
 
   return {
+    adoptImportedFile,
     exportToFile,
     flush,
     isLocked,
     load,
     paths: {
       dataDir,
-      dataFile,
-      backupFile
+      get dataFile() {
+        return currentFile;
+      },
+      get backupFile() {
+        return backupFilePath();
+      }
     },
     readImportFile,
-    replaceWithImported,
     save
   };
 }
 
 module.exports = {
+  LAST_FILE_SETTINGS_NAME,
   MAX_IMPORT_BYTES,
   TASKS_FILE_NAME,
   TaskStoreError,
   createTaskStore,
+  readLastFile,
   writeAtomic
 };

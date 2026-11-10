@@ -11,6 +11,7 @@ A desktop task list and Eisenhower matrix with an optional daily schedule. The o
 - Add, edit, complete, delete, and reorder tasks
 - Portable, versioned JSON task file
 - Native import and export dialogs
+- Remembers the last exported/imported file and reopens it on launch
 - Automatic atomic saves, backups, and corruption recovery
 - Legacy backup import from the original HTML version
 - Light and dark color schemes following the operating system
@@ -141,6 +142,15 @@ Tasks are stored in one portable JSON file outside the application executable:
 
 The file is independent of the executable location and application version. Replacing the portable executable with a newer version keeps the same data directory.
 
+### Remembered working file
+
+From the very first run, myJira works with the default file above. When you **export** tasks to another location or **import** an existing file, that file becomes the working file: every automatic save is written there, and the next time myJira starts it opens that same file instead of the default one.
+
+- The remembered path is stored in `last-file.json` inside the tasks data folder (the same folder that holds `tasks.json`).
+- If the remembered file has been moved or deleted, myJira falls back to the default `tasks.json` and shows a notice; the next successful export or import updates the remembered path again.
+- The default `tasks.json` is left untouched when the app works with another file, so it can be reused or deleted freely.
+- The header title and the footer path always show which file is currently in use.
+
 ### Portable/custom data directory
 
 Set `MYJIRA_DATA_DIR` before launching to place `tasks.json` in a chosen directory:
@@ -194,9 +204,9 @@ In this mode Electron's internal cache is stored in a `.electron-user-data` subd
 ### Saves and recovery
 
 - Saves are written to a temporary file and atomically renamed into place.
-- The previous good file is kept as `tasks.json.bak`.
-- A damaged live file is preserved as `tasks.corrupt-<timestamp>.json`.
-- The app attempts to restore from `tasks.json.bak` when the live file cannot be parsed.
+- The previous good file is kept as `<name>.bak` (for example `tasks.json.bak`) in the tasks data folder, including when the working file lives elsewhere.
+- A damaged live file is preserved as `<name>.corrupt-<timestamp>.json`.
+- The app attempts to restore from the backup when the live file cannot be parsed.
 - If the file uses a newer schema version than the app supports, saves are locked rather than overwriting it. Importing a compatible backup replaces it after confirmation and keeps a timestamped copy.
 - Writes queued before application exit are flushed before quitting.
 
@@ -204,9 +214,9 @@ In this mode Electron's internal cache is stored in a `.electron-user-data` subd
 
 Use **Export backup** and **Import backup** in the application footer. Both use native file dialogs.
 
-- Export writes the current task list as versioned JSON.
+- Export writes the current task list as versioned JSON and makes the chosen file the working file: from then on, automatic saves go there and the app reopens it on launch.
 - Import validates the entire file before changing anything.
-- A valid import replaces the current list only after confirmation and keeps `tasks.pre-import-<timestamp>.json`.
+- A valid import replaces the current list only after confirmation, adopts the chosen file as the working file, and keeps `<name>.pre-import-<timestamp>.json` with the file's original content in the tasks data folder.
 - Invalid or incompatible files are rejected with a message; current tasks are not modified.
 - The maximum import size is 10 MB.
 - The same exported file can be imported on Windows and Linux without conversion.
@@ -218,7 +228,7 @@ Backup files from the original HTML application have no `schemaVersion`. They ar
 ## Verification performed
 
 - Unit tests: schema validation, legacy migration, ordering/duration normalization, atomic writes, backups, corruption recovery, future-schema locking, import safety.
-- Electron end-to-end tests: add, edit, validation, complete, delete, drag between inbox/quadrant/schedule, timeline resize, import, export, invalid import preservation, legacy import, relaunch persistence, and cross-directory transfer.
+- Electron end-to-end tests: add, edit, validation, complete, delete, drag between inbox/quadrant/schedule, timeline resize, import, export, invalid import preservation, legacy import, relaunch persistence, reopening the last exported/imported file after relaunch, and file-to-file transfer.
 - Linux: portable AppImage built and launched directly without extra command-line flags; task creation and JSON persistence verified.
 - Windows: portable executable built and launched directly under Wine 11; task creation and JSON persistence verified without any installation step.
 - Cross-OS data transfer: a Windows-created `tasks.json` was loaded and extended on Linux, then the resulting file was loaded and extended by the Windows build, preserving task text and schema version in both directions.

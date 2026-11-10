@@ -56,8 +56,7 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function waitForTasksFile(dataDir, predicate, timeout = 8000) {
-  const filePath = path.join(dataDir, 'tasks.json');
+async function waitForTasksJson(filePath, predicate, timeout = 8000) {
   const deadline = Date.now() + timeout;
   let lastError = null;
 
@@ -73,7 +72,11 @@ async function waitForTasksFile(dataDir, predicate, timeout = 8000) {
     await delay(50);
   }
 
-  throw new Error('Timed out waiting for tasks.json. ' + (lastError ? lastError.message : ''));
+  throw new Error('Timed out waiting for ' + filePath + '. ' + (lastError ? lastError.message : ''));
+}
+
+function waitForTasksFile(dataDir, predicate, timeout = 8000) {
+  return waitForTasksJson(path.join(dataDir, 'tasks.json'), predicate, timeout);
 }
 
 async function waitForFile(filePath, timeout = 8000) {
@@ -153,12 +156,13 @@ test('creates, edits, completes, deletes, and persists tasks across relaunch', a
   await second.app.close();
 });
 
-test('imports, exports, rejects invalid files, and transfers tasks between data directories', async (t) => {
+test('imports, exports, rejects invalid files, and transfers tasks between files', async (t) => {
   const dataDir = await makeTempDir(t, 'myjira-e2e-import-');
   const otherDataDir = await makeTempDir(t, 'myjira-e2e-other-os-');
   const filesDir = await makeTempDir(t, 'myjira-e2e-files-');
   const first = await launchApp(t, dataDir);
   await addTask(first.page, 'Local task');
+  await waitForTasksFile(dataDir, (raw) => raw.tasks.length === 1);
 
   const importPath = path.join(filesDir, 'import.json');
   const importedTasks = [
@@ -197,13 +201,17 @@ test('imports, exports, rejects invalid files, and transfers tasks between data 
   assert.equal(await first.page.locator('.schedule-event .task-text').textContent(), 'Scheduled work09:00–10:00 · 1h');
   assert.equal(await first.page.locator('.schedule-event').getAttribute('class'), 'task schedule-event done');
 
-  const stored = await waitForTasksFile(dataDir, (raw) => raw.tasks.length === 2);
+  // The imported file becomes the working file; the internal default is untouched.
+  const stored = await waitForTasksJson(importPath, (raw) => raw.tasks.length === 2);
   assert.deepEqual(stored.tasks, importedTasks);
+  const internal = JSON.parse(await fs.readFile(path.join(dataDir, 'tasks.json'), 'utf8'));
+  assert.equal(internal.tasks.length, 1);
+  assert.equal(internal.tasks[0].text, 'Local task');
   const dataFiles = await fs.readdir(dataDir);
-  const preImport = dataFiles.find((file) => file.startsWith('tasks.pre-import-'));
+  const preImport = dataFiles.find((file) => file.startsWith('import.pre-import-'));
   assert.ok(preImport);
   const preImportData = JSON.parse(await fs.readFile(path.join(dataDir, preImport), 'utf8'));
-  assert.equal(preImportData.tasks[0].text, 'Local task');
+  assert.deepEqual(preImportData.tasks, importedTasks);
 
   const exportPath = path.join(filesDir, 'exported-tasks.json');
   await stubDialogs(first.app, { savePath: exportPath });
@@ -227,7 +235,7 @@ test('imports, exports, rejects invalid files, and transfers tasks between data 
   await first.page.click('#messageClose');
 
   assert.equal(await first.page.locator('#q2 .task').count(), 1);
-  const afterInvalid = JSON.parse(await fs.readFile(path.join(dataDir, 'tasks.json'), 'utf8'));
+  const afterInvalid = JSON.parse(await fs.readFile(exportPath, 'utf8'));
   assert.deepEqual(afterInvalid.tasks, importedTasks);
 
   await first.app.close();
@@ -241,9 +249,47 @@ test('imports, exports, rejects invalid files, and transfers tasks between data 
   });
   assert.equal(await second.page.locator('#q2 .task-text').textContent(), 'Añadir reunión 🚀');
   assert.equal(await second.page.locator('.schedule-event.done').count(), 1);
-  const transferred = await waitForTasksFile(otherDataDir, (raw) => raw.tasks.length === 2);
+  const transferred = await waitForTasksJson(exportPath, (raw) => raw.tasks.length === 2);
   assert.deepEqual(transferred.tasks, importedTasks);
   await second.app.close();
+});
+
+test('reopens the file last exported and saves back into it after relaunch', async (t) => {
+  const dataDir = await makeTempDir(t, 'myjira-e2e-remember-');
+  const filesDir = await makeTempDir(t, 'myjira-e2e-remember-files-');
+  const exportPath = path.join(filesDir, 'shared-tasks.json');
+
+  const first = await launchApp(t, dataDir);
+  await addTask(first.page, 'Shared task');
+  await stubDialogs(first.app, { savePath: exportPath });
+  await first.page.click('#exportBtn');
+  await first.page.waitForFunction(() => {
+    const filePath = document.querySelector('#dataFilePath');
+    return filePath && filePath.textContent.includes('shared-tasks.json');
+  });
+  await waitForTasksJson(exportPath, (raw) => raw.tasks.length === 1);
+  await first.app.close();
+
+  // On relaunch the app opens the exported file, not the internal default.
+  const second = await launchApp(t, dataDir);
+  await second.page.waitForFunction(() => document.querySelectorAll('#inbox .task').length === 1);
+  assert.equal(await second.page.locator('#inbox .task-text').textContent(), 'Shared task');
+  assert.match(await second.page.locator('#appTitle').textContent(), /shared-tasks\.json/);
+  assert.match(await second.page.locator('#dataFilePath').textContent(), /shared-tasks\.json/);
+
+  // Edits persist back into the exported file; the default file is not used.
+  await addTask(second.page, 'Second task');
+  await waitForTasksJson(exportPath, (raw) => raw.tasks.length === 2);
+  const internal = JSON.parse(await fs.readFile(path.join(dataDir, 'tasks.json'), 'utf8'));
+  assert.equal(internal.tasks.length, 1);
+  assert.equal(internal.tasks[0].text, 'Shared task');
+  await second.app.close();
+
+  const third = await launchApp(t, dataDir);
+  await third.page.waitForFunction(() => document.querySelectorAll('#inbox .task').length === 2);
+  assert.equal(await third.page.locator('#appTitle').textContent(), 'shared-tasks.json');
+  assert.equal(await third.page.locator('#dataFilePath').textContent(), 'Saved to: ' + exportPath.replace(/\\/g, '\\'));
+  await third.app.close();
 });
 
 test('imports legacy backups without a schema version and upgrades them', async (t) => {
@@ -268,7 +314,7 @@ test('imports legacy backups without a schema version and upgrades them', async 
 
   assert.equal(await page.locator('#inbox .task').count(), 1);
   assert.equal(await page.locator('.schedule-event').count(), 1);
-  const stored = await waitForTasksFile(dataDir, (raw) => raw.tasks.length === 2);
+  const stored = await waitForTasksJson(legacyPath, (raw) => raw.tasks.length === 2);
   assert.equal(stored.schemaVersion, 1);
   assert.equal(stored.tasks.find((task) => task.id === 'legacy-2').duration, 30);
 

@@ -473,6 +473,10 @@
         return;
       }
       setSaveStatus('Exported ' + result.count + ' task' + (result.count === 1 ? '' : 's'));
+      if (result.filePath) {
+        $('#appTitle').textContent = result.filePath.split(/[\\/]/).pop();
+        $('#dataFilePath').textContent = 'Saved to: ' + result.filePath;
+      }
     } catch (error) {
       showMessage('Could not export tasks', error && error.message ? error.message : String(error));
     }
@@ -493,8 +497,9 @@
       state = { tasks: result.tasks };
       saveSequence += 1;
       setLocked(false);
-      if (result.sourceFilePath) {
-        $('#dataFilePath').textContent = 'Source file: ' + result.sourceFilePath;
+      if (result.filePath) {
+        $('#appTitle').textContent = result.filePath.split(/[\\/]/).pop();
+        $('#dataFilePath').textContent = 'Saved to: ' + result.filePath;
       }
       setSaveStatus('Imported ' + result.tasks.length + ' task' + (result.tasks.length === 1 ? '' : 's'));
       render();
